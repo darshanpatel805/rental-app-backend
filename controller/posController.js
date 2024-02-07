@@ -105,12 +105,11 @@ exports.addNewOrder = async (request, response) => {
             { name: 'service_person', type: 'number' },
             { name: 'p_include_item', type: 'string' },
             { name: 'status', type: 'string' },
-            { name: 'paid_amount', type: 'number' },
         ]
         const result = utils.check_request_params(request.body, check_param)
         if (result.success) {
-            const { session_id, customer_id, order_date, service_person, p_include_item, status, payment_mode, paid_amount, tax_amount, transaction_id, remark } = request.body
-            const sql = `INSERT into pos (session_id, customer_id, order_date, service_person, p_include_item, status, payment_mode, paid_amount, tax_amount, transaction_id, remark )VALUES (${session_id}, ${customer_id}, '${order_date}', ${service_person}, '${p_include_item}', '${status}', '${payment_mode}', ${paid_amount}, '${tax_amount}', '${transaction_id}', '${remark}' )`
+            const { session_id, customer_id, order_date, service_person, p_include_item, status, remark } = request.body
+            const sql = `INSERT into pos (session_id, customer_id, order_date, service_person, p_include_item, status,  remark )VALUES (${session_id}, ${customer_id}, '${order_date}', ${service_person}, '${p_include_item}', '${status}',  '${remark}' )`
             const res = await client(sql)
             return response.status(200).send({
                 success: true,
@@ -134,13 +133,11 @@ exports.updatePosOrder = async (request, response) => {
             { name: 'pos_id', type: 'number' },
             { name: 'p_include_item', type: 'string' },
             { name: 'status', type: 'string' },
-            { name: 'payment_mode', type: 'string' },
-            { name: 'paid_amount', type: 'number' },
         ]
         const result = utils.check_request_params(request.body, check_param)
         if (result.success) {
-            const { pos_id, p_include_item, status, payment_mode, paid_amount, confirm_person, transaction_id, remark } = request.body
-            const sql = `UPDATE pos  SET p_include_item = '${p_include_item}',status = '${status}',payment_mode = '${payment_mode}',paid_amount = ${paid_amount},confirm_person = ${confirm_person},transaction_id = '${transaction_id}',remark = '${remark}' where pos_id = ${pos_id}`
+            const { pos_id, p_include_item, status, remark } = request.body
+            const sql = `UPDATE pos  SET p_include_item = '${p_include_item}',status = '${status}',remark = '${remark}' where pos_id = ${pos_id}`
             const res = await client(sql)
             return response.status(200).send({
                 success: true,
@@ -160,14 +157,17 @@ exports.updatePosOrder = async (request, response) => {
 
 exports.getPosOrderList = async (request, response) => {
     try {
-        const sql = `SELECT * from pos where p_isdelete = 1`
+        const sql = `SELECT p.*,c.customer_id,c.c_first_name,c.c_last_name,c.c_code,c.wp_num ,  CONCAT(e1.first_name, ' ', e1.last_name) AS service_person_full_name,
+        COALESCE(CONCAT(e2.first_name, ' ', e2.last_name), 'N/A') AS confirm_person_full_name from pos AS p inner join customer as c on c.customer_id = p.customer_id 
+        INNER JOIN employee AS e1 ON p.service_person = e1.employee_id
+        LEFT JOIN employee AS e2 ON p.confirm_person = e2.employee_id
+        where p_isdelete = 0`
         const res = await client(sql)
-        res.map((r) => {
-            r.p_include_item = JSON.parse(r.p_include_item)
-        })
+
         return response.status(200).send({
             success: true,
-            message: 'POS Order Data Found'
+            message: 'POS Order Data Found',
+            data: res
         })
     } catch (error) {
         console.log(error)
@@ -180,20 +180,29 @@ exports.getPosOrderList = async (request, response) => {
 
 exports.deletePosOrder = async (request, response) => {
     try {
-        let check_param = [
-            { name: 'pos_id', type: 'number' },
-        ]
-        const result = utils.check_request_params(request.body, check_param)
-        if (result.success) {
+        const { pos_id } = request.params;
+        if (pos_id) {
             const { pos_id } = request.params;
-            const sql = `UPDATE pos SET p_isdelete = 1 where pos_id = '{pos_id}'`
-            const res = await client(sql);
-            return response.data(200).send({
-                success: true,
-                message: 'Order Deleted Successfullys'
-            })
+            const checkStatus = `SELECT * from pos where pos_id = ${pos_id}`
+            const [status] = await client(checkStatus)
+            if (status.status === "New") {
+                const sql = `UPDATE pos SET p_isdelete = 1,status = 'Deleted' where pos_id = ${pos_id}`
+                const res = await client(sql);
+                return response.status(200).send({
+                    success: true,
+                    message: 'Order Deleted Successfullys'
+                })
+            } else {
+                return response.status(403).send({
+                    success: false,
+                    message: 'Order Can not Delete '
+                })
+            }
         } else {
-            return response.status(400).json(result);
+            return response.status(400).json({
+                success: false,
+                message: 'CODE PARAMETER Is Missing'
+            });
         }
     } catch (error) {
         console.log(error)

@@ -105,4 +105,12 @@ routes.put('/end-session', auth, posController.endSession)
 
 routes.get('/get-session-data', auth, posController.getSessionList)
 
+routes.post('/create-order', auth, posController.addNewOrder)
+
+routes.get('/get-pos-order', posController.getPosOrderList)
+
+routes.put('/update-order', auth, posController.updatePosOrder)
+
+routes.delete('/delete-order/:pos_id',auth,posController.deletePosOrder)
+
 module.exports = routes;
